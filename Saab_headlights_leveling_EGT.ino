@@ -4,6 +4,14 @@
 #include <Adafruit_SSD1306.h>
 #include "max6675.h"
 
+// Headlights
+int mosfetTriggerPin = 9;
+int reqestedPosition = 0;
+int oppositePosition = 0;
+//For mosfet usage it is required to revert the HIGH and the LOW.
+uint8_t HIGH_O = LOW;
+uint8_t LOW_O = HIGH;
+
 // Display settings
 const int screenWidth = 128; // OLED display width, in pixels
 const int screenHeight = 64; // OLED display height, in pixels
@@ -30,6 +38,9 @@ void setup()
   Serial.begin(115200);
   Serial.println("begin");
 
+  pinMode(mosfetTriggerPin, OUTPUT);
+  pinMode(A0, INPUT);
+
   // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     Serial.println(F("SSD1306 allocation failed"));
@@ -39,12 +50,69 @@ void setup()
 
 void loop()
 {
-  RefreshEgt();
+  getRequestedHeadlightPosition();
+  refreshEgt();
 
-  delay(10);
+  delay(20);
 }
 
-void RefreshEgt()
+void transmitionStart()
+{
+  digitalWrite(mosfetTriggerPin, HIGH_O);
+  delay(2);
+  digitalWrite(mosfetTriggerPin, LOW_O);
+  delay(5);
+  digitalWrite(mosfetTriggerPin, HIGH_O);
+  delayMicroseconds(1000);
+
+}
+
+void transmitionData()
+{
+  digitalWrite(mosfetTriggerPin, HIGH_O);
+  delayMicroseconds(reqestedPosition);
+  digitalWrite(mosfetTriggerPin, LOW_O);
+  delayMicroseconds(oppositePosition);
+}
+
+void transmitionEnd()
+{
+  digitalWrite(mosfetTriggerPin, LOW_O);
+  delayMicroseconds(1000);
+  digitalWrite(mosfetTriggerPin, HIGH_O);
+  delayMicroseconds(1000);
+  digitalWrite(mosfetTriggerPin, LOW_O);
+  delayMicroseconds(500);
+  digitalWrite(mosfetTriggerPin, HIGH_O);
+  delayMicroseconds(500);
+  digitalWrite(mosfetTriggerPin, LOW_O);
+  delay(4);
+}
+
+void getRequestedHeadlightPosition()
+{
+  reqestedPosition = analogRead(A0)* 2.92;
+  oppositePosition = 3000 - reqestedPosition;
+  
+  if (reqestedPosition <= 0)
+  {
+    reqestedPosition = 0;
+  }
+  
+  if (oppositePosition <= 0)
+  {
+    oppositePosition = 0;
+  }
+  
+  Serial.println(reqestedPosition);
+  Serial.println(oppositePosition);
+  
+  transmitionStart();
+  transmitionData();
+  transmitionEnd();
+}
+
+void refreshEgt()
 {
   currentMillisEgt = millis();
   if (currentMillisEgt - startMillisEgt >= egtRefreshInterval)
@@ -62,7 +130,6 @@ void RefreshEgt()
     drawBody(egt);
 
     if (egt > egtLimit) {
-      showWarning();
     }
   }
 }
@@ -109,7 +176,5 @@ void drawBody(int value) {
 
 void showWarning(void) {
 
-  display.invertDisplay(true);
-  delay(150);
-  display.invertDisplay(false);
+  // TODO: zumer
 }
